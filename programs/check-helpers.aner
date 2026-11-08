@@ -1,0 +1,71 @@
+// Deterministic application helpers, independent of model loading or networking.
+fn ensure(condition: Bool, message: String) -> Unit {
+    if !condition {
+        let failure: Result<Int64, String> = Result.err(message)
+        let unreachable = failure.unwrap()
+    }
+}
+
+
+// JSON escaping stays in Aner. UTF-8 text remains text; every control byte
+// U+0000..U+001F is escaped, in addition to quotation marks and backslashes.
+fn json_quote(value: String) -> String {
+    var escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
+    let hex = "0123456789abcdef"
+    var code = 0
+    while code < 32 {
+        let control = Bytes.from_values(List(code)).decode_utf8()
+        let replacement = "\\u00" + hex.get(integer_div(code, 16)) + hex.get(code % 16)
+        escaped = escaped.replace(control, replacement)
+        code = code + 1
+    }
+    return "\"" + escaped + "\""
+}
+
+// Same deliberately limited historical grader: last simple integer box
+// after the final explicit end-of-thinking marker. Empty means ungraded.
+fn boxed_integer(text: String) -> String {
+    let sections = text.split("</think>")
+    if sections.len() < 2 { return "" }
+    let final_text = cast<String>(sections.get(sections.len() - 1))
+    let boxes = final_text.split("\\boxed{")
+    var answer = ""
+    var box_index = 1
+    while box_index < boxes.len() {
+        let tail = cast<String>(boxes.get(box_index))
+        let close = tail.find("}")
+        if close >= 0 {
+            let candidate = tail.slice(0, close).trim()
+            var index = 0
+            if candidate.starts_with("-") { index = 1 }
+            let digits_start = index
+            var valid = true
+            while index < candidate.len() {
+                if !("0123456789,".contains(candidate.get(index))) { valid = false }
+                index = index + 1
+            }
+            if valid && candidate.len() > digits_start {
+                answer = candidate.replace(",", "")
+            }
+        }
+        box_index = box_index + 1
+    }
+    return answer
+}
+
+
+ensure(json_quote("café 🧪") == "\"café 🧪\"", "Unicode JSON quoting")
+ensure(json_quote("a\"b\\c\n\r\t") == "\"a\\\"b\\\\c\\u000a\\u000d\\u0009\"", "JSON special characters")
+let controls = Bytes.from_values(List(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31)).decode_utf8()
+ensure(json_quote(controls) == "\"\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\u0008\\u0009\\u000a\\u000b\\u000c\\u000d\\u000e\\u000f\\u0010\\u0011\\u0012\\u0013\\u0014\\u0015\\u0016\\u0017\\u0018\\u0019\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\"", "All JSON control bytes")
+ensure(boxed_integer("\\boxed{391}") == "", "Require completed thinking")
+ensure(boxed_integer("\\boxed{7}</think>\\boxed{391}") == "391", "Ignore thinking answer")
+ensure(boxed_integer("</think>\\boxed{1} then \\boxed{2}") == "2", "Last final integer box")
+ensure(boxed_integer("</think>\\boxed{1} then \\boxed{2.5}") == "1", "Ignore noninteger box")
+ensure(boxed_integer("</think>\\boxed{ -1,234 }") == "-1234", "Signed comma integer")
+ensure(boxed_integer("</think>\\boxed{-}") == "", "Reject bare sign")
+ensure(boxed_integer("</think>\\boxed{391") == "", "Reject incomplete box")
+ensure(boxed_integer("</think>\\boxed{7}</think>\\boxed{9}") == "9", "Last end-of-thinking boundary")
+print("{\"schema\":\"aner.wsp.aner_helper_checks.v1\",\"checks\":11,\"status\":\"PASSED\",\"model_loaded\":false,\"network_used\":false}")
+

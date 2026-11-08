@@ -1,0 +1,19 @@
+{
+  "schema": "aner.wsp.aner_application_status.v1",
+  "development_target": "0.0.8-dev.2",
+  "application_source_language": "Aner",
+  "status": "EXACT_REPLAY_RESTORATION_AND_PAIRED_PILOTS_COMPLETE",
+  "replay_measured": true,
+  "rollback_measured": true,
+  "pilots_measured": true,
+  "programs_checked": 5,
+  "application_helper_checks_passed": 11,
+  "note": "Exact replay and restoration passed for both formats. The short pilot scored 1/8 for each variant; the two-question longer follow-up scored 2/2 for each. Neither demonstrates an accuracy gain.",
+  "replay_evidence": "aner-replay.jsonl",
+  "rollback_evidence": "aner-revert.jsonl",
+  "short_pilot_measured": true,
+  "long_pilot_measured": true,
+  "short_pilot_evidence": "aner-short-pilot.jsonl",
+  "long_pilot_evidence": "aner-long-pilot.jsonl",
+  "measured_runtime_sha256": "3930f7a139cfc9c2e9ac28d1507a375bc396450011a809a340eb5746102b5daa"
+}

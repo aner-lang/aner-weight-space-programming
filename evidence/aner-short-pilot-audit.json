@@ -1,0 +1,43 @@
+{
+  "schema": "aner.wsp.aner_pilot_audit.v1",
+  "pilot": "short",
+  "runtime_version": "0.0.8-dev.2",
+  "measured_runtime_sha256": "3930f7a139cfc9c2e9ac28d1507a375bc396450011a809a340eb5746102b5daa",
+  "application_source": {
+    "path": "programs/pilot-short.aner",
+    "sha256": "4586b00afb16310d7026832da7209e2a39c6bdac4fac2fdfe48c91a7ba1c2018"
+  },
+  "raw_observations": {
+    "path": "evidence/aner-short-pilot.jsonl",
+    "sha256": "c19b53d2e941bdf1aa34b90e116e117ac85a9d26aaf6fd15d58f7ccdeaa30745"
+  },
+  "valid_jsonl_records": 21,
+  "recomputed_prompt_hashes": 16,
+  "verified_model_fingerprints": 16,
+  "verified_sampling_records": 16,
+  "token_hash_fields_format_checked": 32,
+  "token_hashes_independently_recomputed": false,
+  "independently_recomputed_grades": 16,
+  "base": {
+    "correct": 1,
+    "total": 8,
+    "truncated": 7,
+    "generated_tokens": 15458
+  },
+  "edited": {
+    "correct": 1,
+    "total": 8,
+    "truncated": 7,
+    "generated_tokens": 16005
+  },
+  "rescues": 1,
+  "regressions": 1,
+  "classification": "INFERENCE_SMOKE_ONLY",
+  "accuracy_gain_demonstrated": false,
+  "notes": [
+    "The grader compares a limited boxed integer string with the expected answer; missing accepted answers are recorded as an empty string.",
+    "Recorded grades, paired totals, prompt hashes, checkpoint identities and sampling metadata passed independent audit.",
+    "Token IDs are not included in these response records; token hashes are native runtime observations.",
+    "One seed and a small manually authored prompt set do not establish generalization or controlled speed."
+  ]
+}

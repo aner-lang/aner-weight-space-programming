@@ -1,0 +1,16 @@
+{
+  "schema": "aner.wsp.application_checks.v1",
+  "runtime_version_observed": "0.0.8-dev.2",
+  "checked_programs": [
+    "programs/replay.aner",
+    "programs/revert.aner",
+    "programs/pilot-short.aner",
+    "programs/pilot-long.aner",
+    "programs/check-helpers.aner"
+  ],
+  "language_checks_passed": 5,
+  "helper_checks_passed": 11,
+  "helper_model_loaded": false,
+  "helper_network_used": false,
+  "replay_or_pilot_execution_claimed": false
+}

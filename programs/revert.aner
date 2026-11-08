@@ -1,0 +1,41 @@
+// Creates separate exact originals from the recorded inverse transactions.
+import aner.llm
+
+fn ensure(condition: Bool, message: String) -> Unit {
+    if !condition {
+        let failure: Result<Int64, String> = Result.err(message)
+        let unreachable = failure.unwrap()
+    }
+}
+
+// This reads one known flat digest field in the native receipt format.
+// It is deliberately not a general JSON parser.
+fn receipt_digest(receipt: String, key: String) -> String {
+    let marker = "\"" + key + "\":\""
+    let start = receipt.find(marker)
+    ensure(start >= 0, "Receipt is missing " + key)
+    let remaining = receipt.slice(start + marker.len(), receipt.len())
+    let end = remaining.find("\"")
+    ensure(end == 64, "Receipt digest length differs")
+    let digest = remaining.slice(0, end)
+    var i = 0
+    while i < digest.len() {
+        ensure("0123456789abcdef".contains(digest.get(i)), "Receipt digest is not lowercase SHA256")
+        i = i + 1
+    }
+    return digest
+}
+
+let safetensors = llm.weight_revert(
+    transaction: "generated/qwen-safetensors", out_dir: "generated/restored-safetensors")
+ensure(receipt_digest(safetensors, "candidate_sha256") ==
+    "04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696",
+    "Restored Safetensors differs from the pinned original")
+print(safetensors)
+let gguf = llm.weight_revert(
+    transaction: "generated/qwen-gguf", out_dir: "generated/restored-gguf")
+ensure(receipt_digest(gguf, "candidate_sha256") ==
+    "9a7bed4041b7975e0f71fa34670d1e9025213bc92905ac0db75d36c4fa3fa623",
+    "Restored GGUF differs from the pinned original")
+print(gguf)
+

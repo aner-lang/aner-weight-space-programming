@@ -1,0 +1,8 @@
+/assets/*
+!/assets/.gitkeep
+/generated/*
+!/generated/.gitkeep
+/build/
+/transient/
+.DS_Store
+

@@ -1,0 +1,8 @@
+{"id":"arithmetic","prompt":"What is 17 multiplied by 23?","expected":"391"}
+{"id":"algebra","prompt":"Solve for x: 3x + 7 = 34.","expected":"9"}
+{"id":"combinatorics","prompt":"How many unordered pairs can be chosen from a group of 12 people?","expected":"66"}
+{"id":"geometry","prompt":"A rectangle has perimeter 30 and width 6. What is its area?","expected":"54"}
+{"id":"remainders","prompt":"What is the remainder when 7 raised to the power 4 is divided by 5?","expected":"1"}
+{"id":"rates","prompt":"A pipe fills a tank in 6 hours and another fills it in 3 hours. How many hours do they take together?","expected":"2"}
+{"id":"sequence","prompt":"Find the sum of the first 20 positive odd integers.","expected":"400"}
+{"id":"probability","prompt":"A fair die is rolled twice. How many ordered outcomes have a sum of 7?","expected":"6"}

@@ -1,0 +1,161 @@
+// Pure Aner application, experimental 0.0.8-dev.2.
+// Two prompts repeated from the short suite; not independent holdout data.
+// Run only after programs/replay.aner. Output is JSONL on stdout.
+import aner.llm
+
+fn ensure(condition: Bool, message: String) -> Unit {
+    if !condition {
+        let failure: Result<Int64, String> = Result.err(message)
+        let unreachable = failure.unwrap()
+    }
+}
+
+
+// JSON escaping stays in Aner. UTF-8 text remains text; every control byte
+// U+0000..U+001F is escaped, in addition to quotation marks and backslashes.
+fn json_quote(value: String) -> String {
+    var escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
+    let hex = "0123456789abcdef"
+    var code = 0
+    while code < 32 {
+        let control = Bytes.from_values(List(code)).decode_utf8()
+        let replacement = "\\u00" + hex.get(integer_div(code, 16)) + hex.get(code % 16)
+        escaped = escaped.replace(control, replacement)
+        code = code + 1
+    }
+    return "\"" + escaped + "\""
+}
+
+// Same deliberately limited historical grader: last simple integer box
+// after the final explicit end-of-thinking marker. Empty means ungraded.
+fn boxed_integer(text: String) -> String {
+    let sections = text.split("</think>")
+    if sections.len() < 2 { return "" }
+    let final_text = cast<String>(sections.get(sections.len() - 1))
+    let boxes = final_text.split("\\boxed{")
+    var answer = ""
+    var box_index = 1
+    while box_index < boxes.len() {
+        let tail = cast<String>(boxes.get(box_index))
+        let close = tail.find("}")
+        if close >= 0 {
+            let candidate = tail.slice(0, close).trim()
+            var index = 0
+            if candidate.starts_with("-") { index = 1 }
+            let digits_start = index
+            var valid = true
+            while index < candidate.len() {
+                if !("0123456789,".contains(candidate.get(index))) { valid = false }
+                index = index + 1
+            }
+            if valid && candidate.len() > digits_start {
+                answer = candidate.replace(",", "")
+            }
+        }
+        box_index = box_index + 1
+    }
+    return answer
+}
+
+fn thinking_prompt(question: String) -> String {
+    return "<|im_start|>user\n" + question +
+        "\nPlease reason step by step, and put your final answer within \\boxed{}.<|im_end|>\n<|im_start|>assistant\n<think>\n"
+}
+
+fn run_variant(variant: String, model_path: String, expected_sha256: String,
+    ids: List, questions: List, expected: List, budget: Int64) -> Dictionary {
+    ensure(ids.len() == questions.len() && ids.len() == expected.len(), "Probe arrays differ")
+    let original = llm.load(model_path, context: budget + 2048,
+        device: "metal", kv_cache_type: "f16", flash_attention: "on")
+    let tuned = original.with_optimizer(
+        threads: 8, prefill_threads: 8, batch_tokens: 512, micro_batch_tokens: 512,
+        prefix_cache_entries: 0, prefix_cache_tokens: 1024, speculative_tokens: 0)
+    original.close()
+    let model = tuned.with_sampling(top_k: 20, top_p: 0.95, presence_penalty: 1.5)
+    tuned.close()
+    ensure(model.fingerprint() == expected_sha256, "Loaded model fingerprint differs")
+    ensure(model.device() == "metal" || model.device() == "mps", "Explicit Metal execution required")
+    ensure(!model.supports("session") && !model.supports("prefix_cache") &&
+        !model.supports("continuous_batching"), "Qwen hybrid capability boundary differs")
+
+    print("{\"schema\":\"aner.wsp.aner_pilot_run.v1\",\"variant\":" + json_quote(variant) +
+        ",\"development_target\":\"0.0.8-dev.2\",\"model_sha256\":" + json_quote(model.fingerprint()) +
+        ",\"device\":" + json_quote(model.device()) + ",\"max_tokens\":" + String(budget) +
+        ",\"prompt_mode\":\"raw\",\"seed\":42,\"temperature\":0.6,\"top_k\":20,\"top_p\":0.95,\"presence_penalty\":1.5}")
+    let flags = List()
+    var correct = 0
+    var truncated = 0
+    var generated_tokens = 0
+    var i = 0
+    while i < ids.len() {
+        let id = cast<String>(ids.get(i))
+        let question = cast<String>(questions.get(i))
+        let expected_answer = cast<String>(expected.get(i))
+        let prompt = thinking_prompt(question)
+        let response = model.complete(prompt, max_tokens: budget, temperature: 0.6, seed: 42)
+        let answer = boxed_integer(response.text())
+        let is_correct = answer == expected_answer
+        let is_truncated = response.finish_reason() == "length"
+        flags.append(is_correct)
+        if is_correct { correct = correct + 1 }
+        if is_truncated { truncated = truncated + 1 }
+        generated_tokens = generated_tokens + response.output_tokens()
+        print("{\"schema\":\"aner.wsp.aner_probe.v1\",\"variant\":" + json_quote(variant) +
+            ",\"id\":" + json_quote(id) + ",\"expected\":" + json_quote(expected_answer) +
+            ",\"answer\":" + json_quote(answer) + ",\"correct\":" + String(is_correct) +
+            ",\"truncated\":" + String(is_truncated) + ",\"max_tokens\":" + String(budget) +
+            ",\"prompt_tokens\":" + String(response.input_tokens()) +
+            ",\"generated_tokens\":" + String(response.output_tokens()) +
+            ",\"finish_reason\":" + json_quote(response.finish_reason()) +
+            ",\"rendered_prompt\":" + json_quote(prompt) + ",\"text\":" + json_quote(response.text()) +
+            ",\"timings\":" + response.timings() + "}")
+        i = i + 1
+    }
+    model.close()
+    print("{\"schema\":\"aner.wsp.aner_variant_summary.v1\",\"variant\":" + json_quote(variant) +
+        ",\"correct\":" + String(correct) + ",\"total\":" + String(ids.len()) +
+        ",\"truncated\":" + String(truncated) + ",\"generated_tokens\":" + String(generated_tokens) + "}")
+    let result = Dictionary()
+    result.set("flags", flags)
+    result.set("correct", correct)
+    result.set("truncated", truncated)
+    result.set("generated_tokens", generated_tokens)
+    return result
+}
+
+let ids = List("arithmetic",
+    "algebra")
+let questions = List("What is 17 multiplied by 23?",
+    "Solve for x: 3x + 7 = 34.")
+let expected = List("391",
+    "9")
+let budget = 32768
+let base = run_variant("base", "assets/qwen3.5-0.8b-base-bf16.gguf",
+    "9a7bed4041b7975e0f71fa34670d1e9025213bc92905ac0db75d36c4fa3fa623",
+    ids, questions, expected, budget)
+let edited = run_variant("edited", "generated/qwen-gguf/model.gguf",
+    "f67c865e3961f13e03ac002de1b797d6806e3f80f5443926ab07a8cf1e023597",
+    ids, questions, expected, budget)
+let base_flags = cast<List>(base.get("flags"))
+let edited_flags = cast<List>(edited.get("flags"))
+var rescues = 0
+var regressions = 0
+var i = 0
+while i < ids.len() {
+    let before = cast<Bool>(base_flags.get(i))
+    let after = cast<Bool>(edited_flags.get(i))
+    if !before && after { rescues = rescues + 1 }
+    if before && !after { regressions = regressions + 1 }
+    i = i + 1
+}
+print("{\"schema\":\"aner.wsp.aner_paired_summary.v1\",\"classification\":\"INFERENCE_SMOKE_ONLY\"" +
+    ",\"benchmark_replication\":false,\"new_edit_discovered\":false,\"pilot\":\"long\"" +
+    ",\"total\":" + String(ids.len()) + ",\"max_tokens\":" + String(budget) +
+    ",\"base_correct\":" + String(cast<Int64>(base.get("correct"))) +
+    ",\"edited_correct\":" + String(cast<Int64>(edited.get("correct"))) +
+    ",\"base_truncated\":" + String(cast<Int64>(base.get("truncated"))) +
+    ",\"edited_truncated\":" + String(cast<Int64>(edited.get("truncated"))) +
+    ",\"base_generated_tokens\":" + String(cast<Int64>(base.get("generated_tokens"))) +
+    ",\"edited_generated_tokens\":" + String(cast<Int64>(edited.get("generated_tokens"))) +
+    ",\"rescues\":" + String(rescues) + ",\"regressions\":" + String(regressions) + "}")
+
